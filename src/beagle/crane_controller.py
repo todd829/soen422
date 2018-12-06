@@ -1,141 +1,90 @@
 from pynput import keyboard
 import sys
-
-
-class MoveStrategy:
-
-    def start(self):
-        pass
-    
-    def stop(self):
-        pass
-
-    def is_moving(self):
-        pass
-
-
-class MoveUpStrategy(MoveStrategy):
-
-    def __init__(self):
-        self._is_moving = False
-
-    def start(self):
-        self._is_moving = True
-        # TODO Add implementation
-        print("\nstart moving up\n");
-    
-    def stop(self):
-        self._is_moving = False
-        # TODO Add implementation
-        print("\nstop moving up\n");
-    
-    def is_moving(self):
-        return self._is_moving
-
-
-class MoveLeftStrategy(MoveStrategy):
-
-    def __init__(self):
-        self._is_moving = False
-
-    def start(self):
-        self._is_moving = True
-        # TODO Add implementation
-        print("\nstart moving left\n");
-    
-    def stop(self):
-        self._is_moving = False
-        # TODO Add implementation
-        print("\nstop moving left\n");
-    
-    def is_moving(self):
-        return self._is_moving
-
-
-class MoveDownStrategy(MoveStrategy):
-
-    def __init__(self):
-        self._is_moving = False
-
-    def start(self):
-        self._is_moving = True
-        # TODO Add implementation
-        print("\nstart moving down\n");
-    
-    def stop(self):
-        self._is_moving = False
-        # TODO Add implementation
-        print("\nstop moving down\n");
-    
-    def is_moving(self):
-        return self._is_moving
-
-
-class MoveRightStrategy(MoveStrategy):
-
-    def __init__(self):
-        self._is_moving = False
-
-    def start(self):
-        self._is_moving = True
-        # TODO Add implementation
-        print("\nstart moving right\n");
-    
-    def stop(self):
-        self._is_moving = False
-        # TODO Add implementation
-        print("\nstop moving right\n");
-    
-    def is_moving(self):
-        return self._is_moving
+import random
+import spidev
+import time
         
 
-class MovementCommand:
+class CraneController:
 
     def __init__(self):
-        self.move_up = MoveUpStrategy()
-        self.move_left = MoveLeftStrategy()
-        self.move_down = MoveDownStrategy()
-        self.move_right = MoveRightStrategy()
+        """Crane Controller responsible with key change and sending modification of movements via SPI"""
+        # spi setup
+        self.spi = spidev.SpiDev()
+        self.spi.open(1, 0)
+        self.spi.max_speed_hz = 90000
+
+        # Motor 1
+        self.movements = {
+            # Motor 1
+            'move_up': 0,
+            'move_down': 0,
+            # Motor 2
+            'move_left': 0,
+            'move_right': 0,
+            # Motor 3
+            'move_high': 0,
+            'move_low': 0
+        }
 
         with keyboard.Listener(on_press=self.on_press, on_release=self.on_release) as listener:
             listener.join()
 
     def on_press(self, key):
+        """On Press of a certain key, modify movements and send vie SPI"""
 
         move_by_key_press = {
-            keyboard.KeyCode.from_char('w'): self.move_up,
-            keyboard.KeyCode.from_char('a'): self.move_left,
-            keyboard.KeyCode.from_char('s'): self.move_down,
-            keyboard.KeyCode.from_char('d'): self.move_right
+            keyboard.KeyCode.from_char('w'): self.movements['move_up'],
+            keyboard.KeyCode.from_char('a'): self.movements['move_left'],
+            keyboard.KeyCode.from_char('s'): self.movements['move_down'],
+            keyboard.KeyCode.from_char('d'): self.movements['move_right'],
+            keyboard.KeyCode.from_char('r'): self.movements['move_high'],
+            keyboard.KeyCode.from_char('f'): self.movements['move_low']
         }
 
         if key in move_by_key_press.keys():
-            if move_by_key_press[key].is_moving() == False:
-                move_by_key_press[key].start()
-                # print('press', move)
+            if move_by_key_press[key] == 0:
+                move_by_key_press[key] = 1
+                self.send_spi_command()
 
     def on_release(self, key):
+        """On Release of a certain key, modify movements and send vie SPI"""
 
         if key == keyboard.Key.esc:
             self.end()
 
         move_by_key_release = {
-            keyboard.KeyCode.from_char('w'): self.move_up,
-            keyboard.KeyCode.from_char('a'): self.move_left,
-            keyboard.KeyCode.from_char('s'): self.move_down,
-            keyboard.KeyCode.from_char('d'): self.move_right
+            keyboard.KeyCode.from_char('w'): self.movements['move_up'],
+            keyboard.KeyCode.from_char('a'): self.movements['move_left'],
+            keyboard.KeyCode.from_char('s'): self.movements['move_down'],
+            keyboard.KeyCode.from_char('d'): self.movements['move_right'],
+            keyboard.KeyCode.from_char('r'): self.movements['move_high'],
+            keyboard.KeyCode.from_char('f'): self.movements['move_low']
         }
 
         if key in move_by_key_release.keys():
-            if move_by_key_release[key].is_moving() == True:
-                move_by_key_release[key].stop()
-                # print('release', move)
+            if move_by_key_release[key] == 1:
+                move_by_key_release[key] = 0
+                self.send_spi_command()
+    
+    def spi_command(self):
+        """Create SPI command to send in the form [0, 0, 0, 0, 0, 0] where each group of 2 are a motor's drive/reverse"""
+        return [
+            self.movements['move_up'], self.movements['move_down'],
+            self.movements['move_left'], self.movements['move_right'],
+            self.movements['move_high'], self.movements['move_low']
+            ]
 
+    def send_spi_command(self):
+        """Send SPI command to the Arduino"""
+        command = self.spi_command()
+        print(self.spi.xfer(command))
+        time.sleep(1)
+        
     def end(self):
+        """End the app on ESC"""
         sys.exit(1)
 
 
 if __name__ == '__main__':
-    MovementCommand()
-    
+    CraneController()
