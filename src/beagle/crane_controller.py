@@ -1,141 +1,119 @@
-from pynput import keyboard
+import pygame
 import sys
+import random
+import spidev
+import time
 
 
-class MoveStrategy:
-
-    def start(self):
-        pass
-    
-    def stop(self):
-        pass
-
-    def is_moving(self):
-        pass
-
-
-class MoveUpStrategy(MoveStrategy):
+class CraneController:
 
     def __init__(self):
-        self._is_moving = False
-
-    def start(self):
-        self._is_moving = True
-        # TODO Add implementation
-        print("\nstart moving up\n");
-    
-    def stop(self):
-        self._is_moving = False
-        # TODO Add implementation
-        print("\nstop moving up\n");
-    
-    def is_moving(self):
-        return self._is_moving
-
-
-class MoveLeftStrategy(MoveStrategy):
-
-    def __init__(self):
-        self._is_moving = False
-
-    def start(self):
-        self._is_moving = True
-        # TODO Add implementation
-        print("\nstart moving left\n");
-    
-    def stop(self):
-        self._is_moving = False
-        # TODO Add implementation
-        print("\nstop moving left\n");
-    
-    def is_moving(self):
-        return self._is_moving
-
-
-class MoveDownStrategy(MoveStrategy):
-
-    def __init__(self):
-        self._is_moving = False
-
-    def start(self):
-        self._is_moving = True
-        # TODO Add implementation
-        print("\nstart moving down\n");
-    
-    def stop(self):
-        self._is_moving = False
-        # TODO Add implementation
-        print("\nstop moving down\n");
-    
-    def is_moving(self):
-        return self._is_moving
-
-
-class MoveRightStrategy(MoveStrategy):
-
-    def __init__(self):
-        self._is_moving = False
-
-    def start(self):
-        self._is_moving = True
-        # TODO Add implementation
-        print("\nstart moving right\n");
-    
-    def stop(self):
-        self._is_moving = False
-        # TODO Add implementation
-        print("\nstop moving right\n");
-    
-    def is_moving(self):
-        return self._is_moving
+        """
+        Crane Controller responsible with controller inputs and sending modification of movements via SPI
         
+        Possible Movements are:
 
-class MovementCommand:
+        UP: 1
+        DOWN: 2
+        LEFT: 10
+        RIGHT: 20
+        HIGH: 100
+        LOW: 200
 
-    def __init__(self):
-        self.move_up = MoveUpStrategy()
-        self.move_left = MoveLeftStrategy()
-        self.move_down = MoveDownStrategy()
-        self.move_right = MoveRightStrategy()
+        Possible Movement combinations are:
 
-        with keyboard.Listener(on_press=self.on_press, on_release=self.on_release) as listener:
-            listener.join()
+        UP+LEFT: 11
+        UP+RIGHT: 21
+        DOWN+LEFT: 12
+        DOWN+RIGHT: 22
 
-    def on_press(self, key):
+        UP+HIGH: 101
+        UP+LOW: 201
+        DOWN+HIGH: 102
+        DOWN+LOW: 202
+        LEFT+HIGH: 110
+        LEFT+LOW: 210
+        RIGHT+HIGH: 120
+        RIGHT+LOW: 220
 
-        move_by_key_press = {
-            keyboard.KeyCode.from_char('w'): self.move_up,
-            keyboard.KeyCode.from_char('a'): self.move_left,
-            keyboard.KeyCode.from_char('s'): self.move_down,
-            keyboard.KeyCode.from_char('d'): self.move_right
+        UP+LEFT+HIGH: 111
+        UP+LEFT+LOW: 211
+        UP+RIGHT+HIGH: 121
+        UP+RIGHT+LOW: 221
+        DOWN+LEFT+HIGH: 112
+        DOWN+LEFT+LOW: 212
+        DOWN+RIGHT+HIGH: 122
+        DOWN+RIGHT+LOW: 222
+        """
+        # SPI setup
+        self.spi = spidev.SpiDev()
+        self.spi.open(1, 0)
+        self.spi.max_speed_hz = 90000
+
+        self.move = {
+            # Motor 1
+            'UP': 0,
+            'DOWN': 0,
+            # Motor 2
+            'LEFT': 0,
+            'RIGHT': 0,
+            # Motor 3
+            'HIGH': 0,
+            'LOW': 0
         }
 
-        if key in move_by_key_press.keys():
-            if move_by_key_press[key].is_moving() == False:
-                move_by_key_press[key].start()
-                # print('press', move)
+        pygame.init()
 
-    def on_release(self, key):
+        # Set the width and height of the screen [width,height]
+        size = [500, 500]
+        screen = pygame.display.set_mode(size)
 
-        if key == keyboard.Key.esc:
-            self.end()
+        pygame.display.set_caption("Crane")
 
-        move_by_key_release = {
-            keyboard.KeyCode.from_char('w'): self.move_up,
-            keyboard.KeyCode.from_char('a'): self.move_left,
-            keyboard.KeyCode.from_char('s'): self.move_down,
-            keyboard.KeyCode.from_char('d'): self.move_right
-        }
+        # Used to manage how fast the screen updates
+        clock = pygame.time.Clock()
 
-        if key in move_by_key_release.keys():
-            if move_by_key_release[key].is_moving() == True:
-                move_by_key_release[key].stop()
-                # print('release', move)
+        joystick = pygame.joystick.Joystick(0)
+        joystick.init()
+        
+        # START READING INPUTS FROM USER
 
-    def end(self):
-        sys.exit(1)
+        while True:
+
+            for event in pygame.event.get():
+                event_d = event.__dict__
+
+                if event.type == pygame.JOYAXISMOTION:  # ARROWS USED
+
+                    if event_d['axis'] == 1:  # ARROWS UP/DOWN PRESSED
+                        self.move['UP'] = 1 if event_d['value'] < -1 else 0
+                        self.move['DOWN'] = 2 if event_d['value'] == 1 else 0
+
+                    if event_d['axis'] == 0:  # ARROWS LEFT/RIGHT PRESSED
+                        self.move['LEFT'] = 10 if event_d['value'] < -1 else 0
+                        self.move['RIGHT'] = 20 if event_d['value'] == 1 else 0
+
+                if event.type == pygame.JOYBUTTONDOWN:  # A or B BUTTON PRESSED
+                    self.move['HIGH'] = 100 if event_d['button'] == 1 else 0
+                    self.move['LOW'] = 200 if event_d['button'] == 0 else 0
+
+                if event.type == pygame.JOYBUTTONUP:  # A or B BUTTON RELEASED
+                    self.move['HIGH'] = 0 if event_d['button'] == 1 else 0
+                    self.move['LOW'] = 0 if event_d['button'] == 0 else 0
+
+                # For debugging
+                # print(self.move)
+                self.send_spi()
+    
+    def send_spi(self):
+        """Send SPI command to the Arduino"""
+        message = sum([self.move[key] for key in self.move.keys()])
+
+        # For debugging
+        # print(message)
+
+        print(self.spi.xfer(message))
 
 
 if __name__ == '__main__':
-    MovementCommand()
-    
+    CraneController()
