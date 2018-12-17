@@ -1,7 +1,7 @@
-from pynput import keyboard
+import keyboard
 import sys
 import random
-import spidev
+# import spidev
 import time
         
 
@@ -46,9 +46,9 @@ class CraneController:
         DOWN+RIGHT+LOW: 222
         """
         # spi setup
-        self.spi = spidev.SpiDev()
-        self.spi.open(1, 0)
-        self.spi.max_speed_hz = 90000
+        # self.spi = spidev.SpiDev()
+        # self.spi.open(1, 0)
+        # self.spi.max_speed_hz = 90000
 
         self.move = {
             # Motor 1
@@ -62,19 +62,24 @@ class CraneController:
             'LOW': 0
         }
 
-        with keyboard.Listener(on_press=self.on_press, on_release=self.on_release) as listener:
-            listener.join()
+        keyboard.on_press(self.on_press)
+        keyboard.on_release(self.on_release)
 
-    def on_press(self, key):
+        # Wait on ESC to exit
+        keyboard.wait('esc')
+
+    def on_press(self, key_obj):
         """On Press of a certain key, modify movements and send vie SPI"""
+        key = key_obj.__dict__['name']
+        print(key, key_obj.__dict__)
 
         by_key_press = {
-            keyboard.KeyCode.from_char('w'): (self.move['UP'], 1),
-            keyboard.KeyCode.from_char('a'): (self.move['DOWN'], 2),
-            keyboard.KeyCode.from_char('s'): (self.move['LEFT'], 10),
-            keyboard.KeyCode.from_char('d'): (self.move['RIGHT'], 20),
-            keyboard.KeyCode.from_char('r'): (self.move['HIGH'], 100),
-            keyboard.KeyCode.from_char('f'): (self.move['LOW'], 200)
+            'w': [self.move['UP'], 1],
+            'a': [self.move['DOWN'], 2],
+            's': [self.move['LEFT'], 10],
+            'd': [self.move['RIGHT'], 20],
+            'r': [self.move['HIGH'], 100],
+            'f': [self.move['LOW'], 200]
         }
 
         if key in by_key_press.keys():
@@ -82,19 +87,19 @@ class CraneController:
                 by_key_press[key][0] = by_key_press[key][1]
                 self.send_spi()
 
-    def on_release(self, key):
+    def on_release(self, key_obj):
         """On Release of a certain key, modify movements and send vie SPI"""
 
-        if key == keyboard.Key.esc:
-            self.end()
+        key = key_obj.__dict__['name']
+        print(key, key_obj.__dict__)
 
         by_key_release = {
-            keyboard.KeyCode.from_char('w'): (self.move['UP'], 1),
-            keyboard.KeyCode.from_char('a'): (self.move['DOWN'], 2),
-            keyboard.KeyCode.from_char('s'): (self.move['LEFT'], 10),
-            keyboard.KeyCode.from_char('d'): (self.move['RIGHT'], 20),
-            keyboard.KeyCode.from_char('r'): (self.move['HIGH'], 100),
-            keyboard.KeyCode.from_char('f'): (self.move['LOW'], 200)
+            'w': (self.move['UP'], 1),
+            'a': (self.move['DOWN'], 2),
+            's': (self.move['LEFT'], 10),
+            'd': (self.move['RIGHT'], 20),
+            'r': (self.move['HIGH'], 100),
+            'f': (self.move['LOW'], 200)
         }
 
         if key in by_key_release.keys():
@@ -107,9 +112,9 @@ class CraneController:
         message = sum([self.move[key] for key in self.move.keys()])
 
         # For debugging
-        # print(message)
+        print(message)
 
-        print(self.spi.xfer(message))
+        #print(self.spi.xfer(message))
         
     def end(self):
         """End the app on ESC"""
