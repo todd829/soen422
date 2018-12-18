@@ -3,7 +3,7 @@ import sys
 import random
 # import spidev
 import time
-        
+
 
 class CraneController:
 
